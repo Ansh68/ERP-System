@@ -30,12 +30,41 @@ export const register = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All fields are required: name, email, password, role");
     }
 
-    const existingUser = await User.findOne({ email });
+    if (!/^[a-zA-Z\s]{2,50}$/.test(name.trim())) {
+        throw new ApiError(400, "Name must contain only letters and spaces (2-50 characters)");
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        throw new ApiError(400, "Please provide a valid email address");
+    }
+
+    if (password.length < 6) {
+        throw new ApiError(400, "Password must be at least 6 characters long");
+    }
+
+    const validRoles = [
+        "admin",
+        "sales_executive",
+        "inventory_manager",
+        "production_manager",
+        "quality_inspector",
+        "dispatch_manager",
+    ];
+    if (!validRoles.includes(role)) {
+        throw new ApiError(400, `Invalid role. Allowed roles: ${validRoles.join(", ")}`);
+    }
+
+    const existingUser = await User.findOne({ email: email.trim().toLowerCase() });
     if (existingUser) {
         throw new ApiError(409, "User with this email already exists");
     }
 
-    const user = await User.create({ name, email, password, role });
+    const user = await User.create({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+    });
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken");
 
@@ -52,7 +81,11 @@ export const login = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Email and password are required");
     }
 
-    const user = await User.findOne({ email });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        throw new ApiError(400, "Please provide a valid email address");
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
     if (!user) {
         throw new ApiError(401, "Invalid credentials");
     }

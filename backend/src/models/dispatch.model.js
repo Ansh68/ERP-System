@@ -66,8 +66,26 @@ const dispatchSchema = new Schema(
             trim: true,
         },
         driver: {
-            name: { type: String, trim: true },
-            phone: { type: String, trim: true },
+            name: {
+                type: String,
+                trim: true,
+                validate: {
+                    validator: function (v) {
+                        return !v || /^[a-zA-Z\s]{2,50}$/.test(v);
+                    },
+                    message: "Driver name must contain only letters and spaces (2-50 characters)",
+                },
+            },
+            phone: {
+                type: String,
+                trim: true,
+                validate: {
+                    validator: function (v) {
+                        return !v || /^\d{10}$/.test(v);
+                    },
+                    message: "Driver phone number must be exactly 10 digits",
+                },
+            },
         },
         courier: {
             type: String,
@@ -108,8 +126,6 @@ const dispatchSchema = new Schema(
     { timestamps: true }
 );
 
-dispatchSchema.index({ dispatchNumber: 1 });
-dispatchSchema.index({ trackingNumber: 1 });
 dispatchSchema.index({ salesOrder: 1, status: 1 });
 
 const Dispatch = mongoose.model("Dispatch", dispatchSchema);

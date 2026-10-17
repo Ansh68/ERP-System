@@ -19,17 +19,32 @@ export const createCustomer = asyncHandler(async (req, res) => {
         throw new ApiError(400, "companyName, contactPerson, email, and phone are required");
     }
 
+    // Strict validation: Contact person name must be letters and spaces only
+    if (!/^[a-zA-Z\s]{2,50}$/.test(contactPerson.trim())) {
+        throw new ApiError(400, "Contact person name must contain only letters and spaces (2-50 characters)");
+    }
+
+    // Strict validation: Phone must be exactly 10 digits
+    if (!/^\d{10}$/.test(String(phone).trim())) {
+        throw new ApiError(400, "Phone number must be exactly 10 digits");
+    }
+
+    // Strict validation: Email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        throw new ApiError(400, "Please provide a valid email address");
+    }
+
     const existing = await Customer.findOne({ email });
     if (existing) {
         throw new ApiError(409, "Customer with this email already exists");
     }
 
     const customer = await Customer.create({
-        companyName,
-        contactPerson,
-        email,
-        phone,
-        gstNumber,
+        companyName: companyName.trim(),
+        contactPerson: contactPerson.trim(),
+        email: email.trim().toLowerCase(),
+        phone: String(phone).trim(),
+        gstNumber: gstNumber ? gstNumber.trim().toUpperCase() : undefined,
         billingAddress,
         shippingAddress,
         createdBy: req.user._id,
@@ -99,6 +114,18 @@ export const updateCustomer = asyncHandler(async (req, res) => {
     const customer = await Customer.findById(id);
     if (!customer) {
         throw new ApiError(404, "Customer not found");
+    }
+
+    if (req.body.contactPerson && !/^[a-zA-Z\s]{2,50}$/.test(req.body.contactPerson.trim())) {
+        throw new ApiError(400, "Contact person name must contain only letters and spaces (2-50 characters)");
+    }
+
+    if (req.body.phone && !/^\d{10}$/.test(String(req.body.phone).trim())) {
+        throw new ApiError(400, "Phone number must be exactly 10 digits");
+    }
+
+    if (req.body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email.trim())) {
+        throw new ApiError(400, "Please provide a valid email address");
     }
 
     // If email is being changed, check for duplicate

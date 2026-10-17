@@ -89,7 +89,6 @@ const qualityInspectionSchema = new Schema(
     { timestamps: true }
 );
 
-qualityInspectionSchema.index({ inspectionNumber: 1 });
 qualityInspectionSchema.index({ salesOrder: 1, status: 1 });
 qualityInspectionSchema.index({ productionPlan: 1 });
 

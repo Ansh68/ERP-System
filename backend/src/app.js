@@ -4,9 +4,29 @@ import cors from "cors";
 
 const app = express();
 
+const allowedOrigins = [
+    process.env.CORS_ORIGIN,
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+].filter(Boolean);
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+            return callback(null, true);
+        }
+        // Allow any local development port
+        if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+            return callback(null, true);
+        }
+        return callback(null, true);
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 }));
 
 app.use(express.json({ limit: "40kb" }));
@@ -53,14 +73,35 @@ app.use("/api/v1/audit-logs", auditLogRoutes);
 
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
-    const statusCode = err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    let statusCode = err.statusCode || 500;
+    let message = err.message || "Internal Server Error";
+    let errors = err.errors || [];
+
+    // Mongoose Validation Error
+    if (err.name === "ValidationError") {
+        statusCode = 400;
+        message = Object.values(err.errors)
+            .map((val) => val.message)
+            .join(", ");
+        errors = Object.values(err.errors).map((val) => val.message);
+    }
+    // Mongoose Duplicate Key Error
+    else if (err.code === 11000) {
+        statusCode = 409;
+        const field = Object.keys(err.keyValue || {})[0] || "Field";
+        message = `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`;
+    }
+    // Mongoose Invalid ObjectId / CastError
+    else if (err.name === "CastError") {
+        statusCode = 400;
+        message = `Invalid ${err.path}: ${err.value}`;
+    }
 
     return res.status(statusCode).json({
         success: false,
         statusCode,
         message,
-        errors: err.errors || [],
+        errors,
         ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
     });
 });

@@ -367,6 +367,55 @@ To insert 1,000 orders and hundreds of linked dispatches and production plans wi
 6. **Fake Carrier Service Integration**:
    Simulates 5 courier carriers (`FloData Express`, `BlueDart`, `Delhivery`, `FedEx`, `DTDC`) with realistic tracking numbers and multi-milestone tracking events (`manifest_created` → `picked_up` → `in_transit` → `out_for_delivery` → `delivered`).
 
+---
+
+## Phase 8 — Minimal Functional Frontend (Light Mode Test Console)
+
+### Functionality-First Light-Mode Design
+Built with a minimal, clean light-mode palette (white surfaces, slate borders, clear text, status badges) prioritized specifically for testing end-to-end API correctness and state machines across all 6 roles.
+
+### 1-Click Role Switcher in Navigation
+A topbar role switcher allows testing any role account (`admin`, `sales_executive`, `inventory_manager`, `production_manager`, `quality_inspector`, `dispatch_manager`) with a single click, instantly re-authenticating the session without typing passwords.
+
+### Interactive API Verification Stations
+1. **Orders**: Features the `Approve & Run MRP Check` action that calls `POST /orders/:id/approve` and displays real-time inventory validation (whether FG was sufficient to skip production or raw materials were reserved with shortages).
+2. **Products & BOM**: Includes a live interactive **MRP Simulation Station** to test material requirement planning and shortage detection for any simulated order quantity.
+3. **Raw Materials**: Includes an interactive **Stock Adjustment Modal** to test positive and negative stock movements with reason logging.
+4. **Production**: Features stage progression buttons (`material_issued` → `manufacturing` → `assembly` → `packaging` → `completed`), verifying physical stock deduction and automatic order transitions.
+5. **Quality Control**: Provides an inspection modal testing 4 quality metrics (Visual, Dimensions, Weight, Finish), verifying that `Passed` automatically generates Finished Goods batches and advances the order to `ready_for_dispatch`.
+6. **Dispatch & Tracking**: Allows shipping ready orders (auto-decrementing FG stock), simulating carrier milestone progression (`in_transit` → `out_for_delivery` → `delivered`), and looking up public tracking timelines.
+7. **Reports & Audit**: Dedicated tabbed viewer for all 6 analytical manufacturing reports and the system activity audit log.
+
+---
+
+## Phase 9 — Universal Input Validation & Data Integrity Suite
+
+### Strict 10-Digit Phone Number Rule
+- **Rule**: All phone numbers (Customer contacts, Dispatch driver contacts) must strictly contain exactly 10 digits (`/^\d{10}$/`).
+- **Frontend Enforcement**: Phone inputs use `type="tel"`, `maxLength={10}`, and dynamic regex sanitization (`e.target.value.replace(/\D/g, "").slice(0, 10)`), actively preventing users from entering letters or more than 10 digits. Submission handlers perform pre-flight regex validation with user alerts.
+- **Backend Model & Controller Enforcement**: Mongoose schemas for `Customer` and `Dispatch` enforce `match: [/^\d{10}$/, "Phone number must be exactly 10 digits"]`. Controllers explicitly validate phone strings before database insertion, rejecting invalid payloads with `400 Bad Request`.
+
+### Alphabetic String Validation for Personal Names
+- **Rule**: Personal names (User registered name, Customer contact person, Driver name, Machine operator) must strictly be alphabetic strings containing only letters and spaces (`/^[a-zA-Z\s]{2,50}$/`).
+- **Rationale**: Prevents accidental inclusion of numbers, punctuation, or corrupted data in contact fields.
+- **Enforcement**: Inputs sanitize input on keypress (`replace(/[^a-zA-Z\s]/g, "")`), enforce a maximum length of 50 characters, and validate on submit. Mongoose schemas enforce matching regex validators.
+
+### Standardized Email & Password Validation
+- **Email**: Validated with `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` across both client forms and backend auth/customer controllers, trimming and lowercasing values before storage.
+- **Password**: Enforces a minimum length of 6 characters across registration and login controllers.
+
+### Operational Numeric Bounds & Formula Integrity
+- **Inventory & Pricing**: Unit selling prices, raw material purchase costs, and stock levels are strictly bounded to non-negative numbers (`min: 0`).
+- **BOM Quantities**: Bill of Materials items must specify quantities strictly greater than 0 (`min: 0.001`).
+- **Orders & Production**: Order line item quantities and production plan target quantities must be integers >= 1.
+- **Quality Control**: QC inspection validates that inspected quantity >= 1 and that `passedQuantity + failedQuantity <= inspectedQuantity`, preventing logical inconsistencies in batch reporting.
+
+### Express Global Error Handler Translation for Mongoose Validation
+- **Architecture**: The Express error handler in `app.js` was enhanced to catch native Mongoose `ValidationError`, `CastError`, and Mongo duplicate key error `11000`.
+- **User Impact**: Instead of emitting unformatted 500 Internal Server Errors, Mongoose validation failures are transformed into clear, user-friendly 400 or 409 responses with exact error descriptions displayed directly in client alert dialogs or form banners.
+
+
+
 
 
 

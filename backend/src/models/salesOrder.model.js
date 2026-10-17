@@ -132,7 +132,6 @@ const salesOrderSchema = new Schema(
     { timestamps: true }
 );
 
-salesOrderSchema.index({ orderNumber: 1 });
 salesOrderSchema.index({ customer: 1, status: 1 });
 salesOrderSchema.index({ status: 1, createdAt: -1 });
 

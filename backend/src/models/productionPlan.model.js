@@ -131,7 +131,6 @@ const productionPlanSchema = new Schema(
     { timestamps: true }
 );
 
-productionPlanSchema.index({ productionOrderNumber: 1 });
 productionPlanSchema.index({ salesOrder: 1, stage: 1 });
 productionPlanSchema.index({ stage: 1, startDate: 1 });
 

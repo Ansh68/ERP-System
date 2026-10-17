@@ -41,6 +41,15 @@ export const createDispatch = asyncHandler(async (req, res) => {
         throw new ApiError(400, "salesOrder reference is required");
     }
 
+    if (driver) {
+        if (driver.name && !/^[a-zA-Z\s]{2,50}$/.test(driver.name.trim())) {
+            throw new ApiError(400, "Driver name must contain only letters and spaces (2-50 characters)");
+        }
+        if (driver.phone && !/^\d{10}$/.test(String(driver.phone).trim())) {
+            throw new ApiError(400, "Driver phone number must be exactly 10 digits");
+        }
+    }
+
     const order = await SalesOrder.findById(orderId)
         .populate("customer")
         .populate("items.product");
