@@ -304,7 +304,7 @@ export default function AppLayout({ children }) {
                             className="flex items-center gap-2.5 min-w-0 flex-1"
                             title="Click to view your profile"
                         >
-                            <div className="h-8.5 w-8.5 rounded-full bg-gradient-to-tr from-amber-100 to-amber-200 text-amber-800 flex items-center justify-center font-bold text-xs shrink-0 border border-amber-300/50">
+                            <div className="h-8.5 w-8.5 rounded-full bg-linear-to-tr from-amber-100 to-amber-200 text-amber-800 flex items-center justify-center font-bold text-xs shrink-0 border border-amber-300/50">
                                 {user?.name ? user.name.slice(0, 2).toUpperCase() : "US"}
                             </div>
                             {!collapsed && (
