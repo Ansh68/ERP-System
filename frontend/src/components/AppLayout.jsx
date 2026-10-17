@@ -40,7 +40,6 @@ export default function AppLayout({ children }) {
         return localStorage.getItem("flodata_sidebar_collapsed") === "true";
     });
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [switchingRole, setSwitchingRole] = useState(false);
 
     useEffect(() => {
         localStorage.setItem("flodata_sidebar_collapsed", collapsed);
@@ -53,21 +52,6 @@ export default function AppLayout({ children }) {
             navigate("/login");
         } catch (err) {
             toast.error("Logout failed. Please try again.");
-        }
-    };
-
-    const handleRoleSwitch = async (roleEmail, roleTitle) => {
-        setSwitchingRole(true);
-        const loadingToast = toast.loading(`Switching to ${roleTitle}...`);
-        try {
-            await demoLogin(roleEmail);
-            toast.success(`Switched role to ${roleTitle}`, { id: loadingToast });
-            window.location.reload();
-        } catch (err) {
-            toast.error(err.response?.data?.message || `Failed to switch to ${roleTitle}`, {
-                id: loadingToast,
-            });
-            setSwitchingRole(false);
         }
     };
 
@@ -119,15 +103,6 @@ export default function AppLayout({ children }) {
     };
 
     const currentBadge = roleBadges[user?.role] || { label: user?.role || "User", variant: "slate" };
-
-    const quickRoles = [
-        { title: "Admin", email: "admin@flodata.com", roleKey: "admin" },
-        { title: "Sales", email: "sales@flodata.com", roleKey: "sales_executive" },
-        { title: "Inventory", email: "inventory@flodata.com", roleKey: "inventory_manager" },
-        { title: "Prod", email: "production@flodata.com", roleKey: "production_manager" },
-        { title: "QC", email: "qc@flodata.com", roleKey: "quality_inspector" },
-        { title: "Dispatch", email: "dispatch@flodata.com", roleKey: "dispatch_manager" },
-    ];
 
     const currentSection = navLinks.find((l) => l.path === location.pathname)?.label || "Dashboard";
 
@@ -258,38 +233,6 @@ export default function AppLayout({ children }) {
                         );
                     })}
 
-                    {/* Quick Role Switcher (Compact, Clean) */}
-                    {!collapsed && (
-                        <div className="pt-4 mt-4 border-t border-slate-100">
-                            <div className="px-3 pb-2 flex items-center justify-between">
-                                <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400 font-heading flex items-center gap-1.5">
-                                    <Sparkles className="h-3 w-3 text-amber-500" />
-                                    Switch Role
-                                </span>
-                                <span className="text-[10px] text-slate-400">Dev</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1 px-1">
-                                {quickRoles.map((r) => {
-                                    const isCurrent = user?.role === r.roleKey;
-                                    return (
-                                        <button
-                                            key={r.roleKey}
-                                            disabled={switchingRole}
-                                            onClick={() => handleRoleSwitch(r.email, r.title)}
-                                            className={`px-1.5 py-1 text-[11px] font-medium rounded-lg border transition-colors text-center cursor-pointer ${
-                                                isCurrent
-                                                    ? "bg-sky-50 text-sky-700 border-sky-300 font-semibold"
-                                                    : "bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50 hover:text-slate-900"
-                                            }`}
-                                            title={`Login as ${r.title}`}
-                                        >
-                                            {r.title}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* User Profile Card & Sign Out (Emma Johnson style) */}

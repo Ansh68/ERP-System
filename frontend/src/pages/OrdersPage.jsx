@@ -61,6 +61,11 @@ export default function OrdersPage() {
     const [editDate, setEditDate] = useState("");
     const [editRemarks, setEditRemarks] = useState("");
 
+    // Cancel Order Modal State
+    const [cancelModalOrder, setCancelModalOrder] = useState(null); // { id, orderNumber }
+    const [cancelReason, setCancelReason] = useState("Customer requested cancellation");
+    const [cancelLoading, setCancelLoading] = useState(false);
+
     const fetchOrders = async () => {
         setLoading(true);
         try {
@@ -217,24 +222,40 @@ export default function OrdersPage() {
         }
     };
 
-    // Cancel Order
-    const handleCancelOrder = async (orderId) => {
-        const reason = window.prompt("Reason for cancellation:", "Customer requested cancellation");
-        if (!reason) return;
+    // Open Cancel Order Dialog
+    const handleOpenCancelModal = (orderId, orderNumber, e) => {
+        if (e) e.stopPropagation();
+        setCancelModalOrder({ id: orderId, orderNumber });
+        setCancelReason("Customer requested cancellation");
+    };
 
-        setActionLoading(true);
+    // Confirm Cancellation
+    const handleConfirmCancelOrder = async (e) => {
+        if (e) e.preventDefault();
+        if (!cancelModalOrder) return;
+
+        if (!cancelReason.trim()) {
+            toast.error("Please provide a reason for order cancellation.");
+            return;
+        }
+
+        setCancelLoading(true);
         const actionToast = toast.loading("Cancelling order & releasing stock...");
         try {
-            await apiClient.post(`/orders/${orderId}/cancel`, { reason });
+            await apiClient.post(`/orders/${cancelModalOrder.id}/cancel`, {
+                reason: cancelReason.trim(),
+            });
             toast.success("Order cancelled and reserved stock released.", { id: actionToast });
+            const cancelledId = cancelModalOrder.id;
+            setCancelModalOrder(null);
             fetchOrders();
-            if (viewOrder && viewOrder._id === orderId) {
-                handleViewOrder(orderId);
+            if (viewOrder && viewOrder._id === cancelledId) {
+                handleViewOrder(cancelledId);
             }
         } catch (err) {
             toast.error(err.response?.data?.message || "Failed to cancel order", { id: actionToast });
         } finally {
-            setActionLoading(false);
+            setCancelLoading(false);
         }
     };
 
@@ -475,7 +496,7 @@ export default function OrdersPage() {
                                                                 variant="outline"
                                                                 size="sm"
                                                                 disabled={actionLoading}
-                                                                onClick={() => handleCancelOrder(ord._id)}
+                                                                onClick={(e) => handleOpenCancelModal(ord._id, ord.orderNumber, e)}
                                                                 className="h-7 px-2 text-[10.5px] rounded-lg text-rose-600 hover:bg-rose-50 border-rose-200"
                                                             >
                                                                 Cancel
@@ -831,7 +852,7 @@ export default function OrdersPage() {
                                     variant="outline"
                                     size="sm"
                                     disabled={actionLoading}
-                                    onClick={() => handleCancelOrder(viewOrder._id)}
+                                    onClick={() => handleOpenCancelModal(viewOrder._id, viewOrder.orderNumber)}
                                     className="rounded-xl text-rose-600 hover:bg-rose-50 border-rose-200"
                                 >
                                     Cancel Order
@@ -847,6 +868,83 @@ export default function OrdersPage() {
                                 Close
                             </Button>
                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {/* Cancel Order Confirmation Modal */}
+            {cancelModalOrder && (
+                <Dialog open={!!cancelModalOrder} onOpenChange={() => setCancelModalOrder(null)}>
+                    <DialogContent className="max-w-md rounded-2xl p-6">
+                        <DialogHeader>
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                                    <AlertTriangle className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-base font-bold text-slate-900 font-heading">
+                                        Cancel Sales Order
+                                    </DialogTitle>
+                                    <p className="text-xs text-slate-500 font-body">
+                                        Order: <span className="font-mono font-semibold text-slate-800">{cancelModalOrder.orderNumber}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </DialogHeader>
+
+                        <form onSubmit={handleConfirmCancelOrder} className="space-y-3.5 mt-3 text-xs font-body">
+                            <div className="p-3 rounded-xl bg-rose-50/70 border border-rose-200 text-rose-900 text-[11px] leading-relaxed">
+                                <span className="font-bold block mb-0.5">Warning: Immediate Inventory Release</span>
+                                Cancelling this order will release all reserved finished goods batches and allocated raw materials back to uncommitted available stock.
+                            </div>
+
+                            <div>
+                                <Label className="text-xs font-heading">Reason for Cancellation *</Label>
+                                <select
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                    className="w-full mt-1 h-9 px-3 border border-slate-200 rounded-xl text-xs bg-white text-slate-800"
+                                >
+                                    <option value="Customer requested cancellation">Customer requested cancellation</option>
+                                    <option value="Procurement specs revised / Quotation superseded">Procurement specs revised / Quotation superseded</option>
+                                    <option value="Commercial terms / Credit terms renegotiated">Commercial terms / Credit terms renegotiated</option>
+                                    <option value="Project timeline delayed by client">Project timeline delayed by client</option>
+                                    <option value="Duplicate order entry">Duplicate order entry</option>
+                                    <option value="Custom reason">Other reason (specify below)</option>
+                                </select>
+                            </div>
+
+                            {cancelReason === "Custom reason" && (
+                                <div>
+                                    <Label className="text-xs font-heading">Specify Detailed Reason *</Label>
+                                    <Input
+                                        autoFocus
+                                        placeholder="Enter cancellation reason..."
+                                        onChange={(e) => setCancelReason(e.target.value)}
+                                        className="mt-1 h-9 rounded-xl text-xs"
+                                        required
+                                    />
+                                </div>
+                            )}
+
+                            <DialogFooter className="pt-2 flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => setCancelModalOrder(null)}
+                                    className="rounded-xl"
+                                >
+                                    Nevermind, Keep Order
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={cancelLoading}
+                                    className="rounded-xl font-heading bg-rose-600 hover:bg-rose-700 text-white"
+                                >
+                                    {cancelLoading ? "Cancelling..." : "Confirm Cancellation"}
+                                </Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
             )}

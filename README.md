@@ -163,7 +163,7 @@ Use any of the following pre-configured credentials to test different department
 | **Quality Inspector** | `qc@flodata.com` | `Password@123` | Pending inspection queue, 4-point parameter certification, FG batch receipt |
 | **Dispatch Manager** | `dispatch@flodata.com` | `Password@123` | Consignment creation, carrier assignment, telematics simulation, delivery fulfillment |
 
-> **Pro-Tip**: When logged into the application, use the **1-Click Role Switcher** at the bottom of the left sidebar to switch between roles on the fly during testing.
+> **Tip**: You can log in using any of the role credentials above to test department-specific views and permission boundaries.
 
 ---
 

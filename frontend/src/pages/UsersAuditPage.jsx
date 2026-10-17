@@ -233,7 +233,7 @@ export default function UsersAuditPage() {
                     <div className="mt-5 p-3 bg-slate-50 rounded-xl text-left border border-slate-100 text-xs">
                         <span className="text-[10px] text-slate-400 font-heading block uppercase">Testing Tip</span>
                         <p className="text-slate-600 text-[11px] mt-0.5">
-                            You can switch to the Admin demo account using the role switcher at the bottom of the left sidebar.
+                            Please log in with an Administrator account (admin@flodata.com) to access system security settings.
                         </p>
                     </div>
                 </Card>
