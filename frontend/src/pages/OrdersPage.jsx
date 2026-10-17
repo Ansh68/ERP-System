@@ -1,5 +1,36 @@
 import { useState, useEffect } from "react";
 import apiClient from "../api/apiClient";
+import toast from "react-hot-toast";
+import {
+    ShoppingCart,
+    Search,
+    Plus,
+    Filter,
+    Clock,
+    CheckCircle2,
+    XCircle,
+    Eye,
+    Edit3,
+    ArrowRight,
+    ChevronLeft,
+    ChevronRight,
+    AlertTriangle,
+    Boxes,
+    Package,
+    RotateCw,
+    X,
+    Calendar,
+    FileText,
+    Truck,
+    Sparkles,
+} from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../components/ui/Card";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Label } from "../components/ui/Label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../components/ui/Dialog";
+import { Skeleton } from "../components/ui/Skeleton";
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState([]);
@@ -11,24 +42,31 @@ export default function OrdersPage() {
     const [page, setPage] = useState(1);
     const [pagination, setPagination] = useState({});
 
-    // Modal state for creating an order
+    // Modal state: Create Order
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [createLoading, setCreateLoading] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState("");
     const [orderItems, setOrderItems] = useState([{ product: "", quantity: 1 }]);
     const [expectedDate, setExpectedDate] = useState("");
     const [priority, setPriority] = useState("medium");
     const [remarks, setRemarks] = useState("");
 
-    // Modal state for viewing order details
+    // Modal state: View Order Details
     const [viewOrder, setViewOrder] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Edit Draft Order mode
+    const [isEditingOrder, setIsEditingOrder] = useState(false);
+    const [editPriority, setEditPriority] = useState("medium");
+    const [editDate, setEditDate] = useState("");
+    const [editRemarks, setEditRemarks] = useState("");
 
     const fetchOrders = async () => {
         setLoading(true);
         try {
             const params = { page, limit: 10 };
             if (statusFilter) params.status = statusFilter;
-            if (search) params.search = search;
+            if (search.trim()) params.search = search.trim();
 
             const res = await apiClient.get("/orders", { params });
             if (res.data?.success) {
@@ -36,7 +74,7 @@ export default function OrdersPage() {
                 setPagination(res.data.data.pagination);
             }
         } catch (err) {
-            console.error("Failed to load orders", err);
+            toast.error(err.response?.data?.message || "Failed to load orders");
         } finally {
             setLoading(false);
         }
@@ -74,7 +112,9 @@ export default function OrdersPage() {
     };
 
     const handleRemoveItemRow = (index) => {
-        setOrderItems(orderItems.filter((_, i) => i !== index));
+        if (orderItems.length > 1) {
+            setOrderItems(orderItems.filter((_, i) => i !== index));
+        }
     };
 
     const handleItemChange = (index, field, value) => {
@@ -83,537 +123,732 @@ export default function OrdersPage() {
         setOrderItems(updated);
     };
 
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            maximumFractionDigits: 0,
+        }).format(amount || 0);
+    };
+
+    // Create Order
     const handleCreateOrder = async (e) => {
         e.preventDefault();
 
         if (!selectedCustomer) {
-            alert("Please select a customer");
+            toast.error("Please select a customer");
             return;
         }
 
         const validItems = orderItems.filter((item) => item.product && Number(item.quantity) >= 1);
         if (validItems.length === 0) {
-            alert("Please add at least one line item with a selected product and quantity >= 1");
+            toast.error("Please add at least one line item with quantity >= 1");
             return;
         }
+
+        setCreateLoading(true);
+        const actionToast = toast.loading("Creating sales order...");
 
         try {
             const payload = {
                 customer: selectedCustomer,
                 items: validItems.map((item) => ({
                     product: item.product,
-                    quantity: Number(item.quantity),
+                    quantity: Math.max(1, parseInt(item.quantity, 10)),
                 })),
                 expectedDeliveryDate: expectedDate || undefined,
                 priority,
-                remarks: remarks ? remarks.trim() : undefined,
+                remarks: remarks.trim() || undefined,
             };
 
             await apiClient.post("/orders", payload);
-            alert("Sales Order created successfully!");
+            toast.success("Sales Order created successfully!", { id: actionToast });
             setShowCreateModal(false);
-            // Reset form
             setSelectedCustomer("");
             setOrderItems([{ product: "", quantity: 1 }]);
             setExpectedDate("");
             setRemarks("");
             fetchOrders();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to create order");
-        }
-    };
-
-    // ─── ACTION: APPROVE ORDER & RUN AUTO-INVENTORY VALIDATION ─────────────────
-    const handleApproveOrder = async (orderId) => {
-        if (!window.confirm("Approve order and run automated Inventory / MRP check?")) return;
-        setActionLoading(true);
-        try {
-            const res = await apiClient.post(`/orders/${orderId}/approve`);
-            alert(res.data?.message || "Order approved successfully!");
-            fetchOrders();
-            if (viewOrder && viewOrder._id === orderId) {
-                const refreshed = await apiClient.get(`/orders/${orderId}`);
-                setViewOrder(refreshed.data.data);
-            }
-        } catch (err) {
-            alert(err.response?.data?.message || "Failed to approve order");
+            toast.error(err.response?.data?.message || "Failed to create order", { id: actionToast });
         } finally {
-            setActionLoading(false);
+            setCreateLoading(false);
         }
     };
 
-    // ─── ACTION: CANCEL ORDER & RELEASE RESERVATIONS ───────────────────────────
-    const handleCancelOrder = async (orderId) => {
-        const reason = window.prompt("Reason for cancellation:", "Customer requested cancellation");
-        if (!reason) return;
-        setActionLoading(true);
-        try {
-            await apiClient.post(`/orders/${orderId}/cancel`, { reason });
-            alert("Order cancelled and reserved stock released.");
-            fetchOrders();
-            if (viewOrder && viewOrder._id === orderId) {
-                const refreshed = await apiClient.get(`/orders/${orderId}`);
-                setViewOrder(refreshed.data.data);
-            }
-        } catch (err) {
-            alert(err.response?.data?.message || "Failed to cancel order");
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const handleViewDetails = async (orderId) => {
+    // Open detail modal for clicked order
+    const handleViewOrder = async (orderId) => {
         try {
             const res = await apiClient.get(`/orders/${orderId}`);
             if (res.data?.success) {
-                setViewOrder(res.data.data);
+                const orderData = res.data.data;
+                setViewOrder(orderData);
+                setIsEditingOrder(false);
+                setEditPriority(orderData.priority || "medium");
+                setEditDate(orderData.expectedDeliveryDate ? orderData.expectedDeliveryDate.slice(0, 10) : "");
+                setEditRemarks(orderData.remarks || "");
             }
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to fetch order details");
+            toast.error(err.response?.data?.message || "Failed to load order details");
         }
     };
 
-    const getStatusBadge = (st) => {
-        const colors = {
-            draft: "bg-gray-100 text-gray-700",
-            approved: "bg-blue-50 text-blue-700 border-blue-200",
-            inventory_check: "bg-yellow-50 text-yellow-700",
-            production_planned: "bg-amber-100 text-amber-800",
-            in_production: "bg-orange-100 text-orange-800",
-            quality_check: "bg-purple-100 text-purple-800",
-            ready_for_dispatch: "bg-indigo-100 text-indigo-800",
-            dispatched: "bg-cyan-100 text-cyan-800",
-            delivered: "bg-emerald-100 text-emerald-800",
-            cancelled: "bg-red-100 text-red-800",
-        };
-        return (
-            <span className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${colors[st] || "bg-gray-100"}`}>
-                {st?.replace("_", " ")}
-            </span>
-        );
+    // Approve Order & Run MRP Check
+    const handleApproveOrder = async (orderId) => {
+        setActionLoading(true);
+        const actionToast = toast.loading("Verifying inventory & running MRP...");
+        try {
+            const res = await apiClient.post(`/orders/${orderId}/approve`);
+            const validation = res.data?.data?.inventoryValidation;
+            if (validation?.isFinishedGoodsSufficient) {
+                toast.success("Finished Goods in stock! Skipped production & reserved stock.", { id: actionToast, duration: 5000 });
+            } else {
+                toast.success("Materials verified! Generated production requirement.", { id: actionToast, duration: 5000 });
+            }
+            fetchOrders();
+            // Refresh detail modal if open
+            if (viewOrder && viewOrder._id === orderId) {
+                handleViewOrder(orderId);
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to approve order", { id: actionToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Cancel Order
+    const handleCancelOrder = async (orderId) => {
+        const reason = window.prompt("Reason for cancellation:", "Customer requested cancellation");
+        if (!reason) return;
+
+        setActionLoading(true);
+        const actionToast = toast.loading("Cancelling order & releasing stock...");
+        try {
+            await apiClient.post(`/orders/${orderId}/cancel`, { reason });
+            toast.success("Order cancelled and reserved stock released.", { id: actionToast });
+            fetchOrders();
+            if (viewOrder && viewOrder._id === orderId) {
+                handleViewOrder(orderId);
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to cancel order", { id: actionToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Update Draft Order
+    const handleUpdateDraftOrder = async (e) => {
+        e.preventDefault();
+        if (!viewOrder) return;
+
+        setActionLoading(true);
+        const actionToast = toast.loading("Saving order changes...");
+        try {
+            const payload = {
+                priority: editPriority,
+                expectedDeliveryDate: editDate || undefined,
+                remarks: editRemarks.trim() || undefined,
+            };
+            const res = await apiClient.patch(`/orders/${viewOrder._id}`, payload);
+            toast.success("Draft order updated successfully!", { id: actionToast });
+            setIsEditingOrder(false);
+            if (res.data?.data) {
+                setViewOrder(res.data.data);
+            }
+            fetchOrders();
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed to update order", { id: actionToast });
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const statusBadgeMap = {
+        draft: { label: "Draft", variant: "slate" },
+        approved: { label: "Approved", variant: "default" },
+        inventory_check: { label: "Inv Check", variant: "warning" },
+        production_planned: { label: "Planned", variant: "indigo" },
+        in_production: { label: "In Production", variant: "warning" },
+        quality_check: { label: "Quality Check", variant: "purple" },
+        ready_for_dispatch: { label: "Ready to Ship", variant: "success" },
+        dispatched: { label: "Dispatched", variant: "default" },
+        delivered: { label: "Delivered", variant: "success" },
+        cancelled: { label: "Cancelled", variant: "danger" },
+    };
+
+    const priorityBadgeMap = {
+        urgent: { label: "Urgent", variant: "danger" },
+        high: { label: "High", variant: "warning" },
+        medium: { label: "Medium", variant: "default" },
+        low: { label: "Low", variant: "slate" },
     };
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="space-y-6">
+            {/* Top Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Sales Orders</h1>
-                    <p className="text-xs text-gray-500">Manage orders, approve for automated MRP check, or cancel</p>
+                    <div className="flex items-center gap-2.5">
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 font-heading tracking-tight">
+                            Sales Orders Hub
+                        </h1>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/70 font-medium">
+                            {pagination.total || orders.length} Orders
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-body mt-0.5">
+                        Manage customer sales orders, trigger automated MRP checks, and track lifecycle progression
+                    </p>
                 </div>
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700"
-                >
-                    + Create Sales Order
-                </button>
-            </div>
-
-            {/* Filter & Search Bar */}
-            <div className="bg-white p-3 rounded border border-gray-200 flex flex-wrap items-center gap-3 text-xs">
-                <form onSubmit={handleSearchSubmit} className="flex gap-2">
-                    <input
-                        type="text"
-                        placeholder="Search order number..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="px-2.5 py-1.5 border border-gray-300 rounded focus:outline-none"
-                    />
-                    <button type="submit" className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded font-medium">
-                        Search
-                    </button>
-                </form>
 
                 <div className="flex items-center gap-2">
-                    <span className="text-gray-500">Status:</span>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => {
-                            setStatusFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        className="px-2 py-1.5 border border-gray-300 rounded bg-white"
+                    <Button
+                        onClick={() => setShowCreateModal(true)}
+                        className="rounded-xl gap-2 font-heading"
                     >
-                        <option value="">All Statuses</option>
-                        <option value="draft">Draft</option>
-                        <option value="approved">Approved</option>
-                        <option value="production_planned">Production Planned</option>
-                        <option value="in_production">In Production</option>
-                        <option value="quality_check">Quality Check</option>
-                        <option value="ready_for_dispatch">Ready for Dispatch</option>
-                        <option value="dispatched">Dispatched</option>
-                        <option value="delivered">Delivered</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
+                        <Plus className="h-4 w-4" />
+                        <span>Create Order</span>
+                    </Button>
                 </div>
             </div>
 
-            {/* Orders Table */}
-            <div className="bg-white rounded border border-gray-200 overflow-x-auto text-xs">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                        <tr>
-                            <th className="p-3">Order #</th>
-                            <th className="p-3">Customer</th>
-                            <th className="p-3">Items</th>
-                            <th className="p-3">Total Amount</th>
-                            <th className="p-3">Priority</th>
-                            <th className="p-3">Status</th>
-                            <th className="p-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {loading ? (
-                            <tr>
-                                <td colSpan="7" className="p-4 text-center text-gray-500">
-                                    Loading orders...
-                                </td>
-                            </tr>
-                        ) : orders.length === 0 ? (
-                            <tr>
-                                <td colSpan="7" className="p-4 text-center text-gray-500">
-                                    No sales orders found.
-                                </td>
-                            </tr>
-                        ) : (
-                            orders.map((order) => (
-                                <tr key={order._id} className="hover:bg-gray-50/50">
-                                    <td className="p-3 font-mono font-medium">{order.orderNumber}</td>
-                                    <td className="p-3">{order.customer?.companyName || "N/A"}</td>
-                                    <td className="p-3">{order.items?.length || 0} product(s)</td>
-                                    <td className="p-3 font-semibold">
-                                        ₹{Number(order.totalAmount || 0).toLocaleString()}
-                                    </td>
-                                    <td className="p-3">
-                                        <span className="capitalize">{order.priority}</span>
-                                    </td>
-                                    <td className="p-3">{getStatusBadge(order.status)}</td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-1.5">
-                                            <button
-                                                onClick={() => handleViewDetails(order._id)}
-                                                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
-                                            >
-                                                Details
-                                            </button>
-                                            {order.status === "draft" && (
-                                                <button
-                                                    onClick={() => handleApproveOrder(order._id)}
-                                                    disabled={actionLoading}
-                                                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded"
-                                                    title="Triggers Automated Inventory Check & MRP"
-                                                >
-                                                    Approve
-                                                </button>
-                                            )}
-                                            {!["dispatched", "delivered", "cancelled"].includes(order.status) && (
-                                                <button
-                                                    onClick={() => handleCancelOrder(order._id)}
-                                                    disabled={actionLoading}
-                                                    className="px-2 py-1 border border-red-200 text-red-600 hover:bg-red-50 rounded"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            {/* Filter Tabs & Search Bar */}
+            <Card className="rounded-2xl">
+                <div className="p-3.5 sm:p-4 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        {/* Search Input */}
+                        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 max-w-md w-full">
+                            <div className="relative flex-1">
+                                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Search by order number (e.g. SO-1001)..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="pl-9 h-9.5 text-xs rounded-xl"
+                                />
+                            </div>
+                            <Button type="submit" variant="secondary" size="sm" className="rounded-xl font-heading">
+                                Search
+                            </Button>
+                        </form>
+                    </div>
 
-            {/* Pagination Controls */}
-            {pagination.totalPages > 1 && (
-                <div className="flex justify-between items-center text-xs text-gray-600 pt-2">
-                    <span>
-                        Page {pagination.page} of {pagination.totalPages} ({pagination.total} total orders)
-                    </span>
-                    <div className="flex gap-1">
-                        <button
-                            disabled={page <= 1}
-                            onClick={() => setPage(page - 1)}
-                            className="px-2 py-1 border rounded disabled:opacity-50"
-                        >
-                            Previous
-                        </button>
-                        <button
-                            disabled={page >= pagination.totalPages}
-                            onClick={() => setPage(page + 1)}
-                            className="px-2 py-1 border rounded disabled:opacity-50"
-                        >
-                            Next
-                        </button>
+                    {/* Status Tabs Strip (Vantus style) */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-heading">
+                        {[
+                            { key: "", label: "All Statuses" },
+                            { key: "draft", label: "Draft" },
+                            { key: "approved", label: "Approved" },
+                            { key: "production_planned", label: "Planned" },
+                            { key: "in_production", label: "Production" },
+                            { key: "quality_check", label: "QC Check" },
+                            { key: "ready_for_dispatch", label: "Ready Ship" },
+                            { key: "dispatched", label: "Dispatched" },
+                            { key: "delivered", label: "Delivered" },
+                            { key: "cancelled", label: "Cancelled" },
+                        ].map((t) => (
+                            <button
+                                key={t.key}
+                                onClick={() => {
+                                    setStatusFilter(t.key);
+                                    setPage(1);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer font-medium ${
+                                    statusFilter === t.key
+                                        ? "bg-sky-500 text-white font-semibold shadow-xs"
+                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
+                                }`}
+                            >
+                                {t.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
-            )}
+            </Card>
 
-            {/* ─── MODAL: CREATE ORDER ────────────────────────────────────────── */}
-            {showCreateModal && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg shadow-lg border max-w-xl w-full p-5 text-sm space-y-4 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center border-b pb-2">
-                            <h2 className="font-bold text-base text-gray-900">New Sales Order</h2>
-                            <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">
-                                &times;
-                            </button>
+            {/* Orders Table */}
+            <Card className="rounded-2xl">
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs font-body">
+                            <thead className="bg-slate-50/70 text-slate-500 border-b border-slate-100">
+                                <tr>
+                                    <th className="px-5 py-3 font-semibold font-heading">Order Identifier</th>
+                                    <th className="px-5 py-3 font-semibold font-heading">Customer</th>
+                                    <th className="px-5 py-3 font-semibold font-heading">Line Items</th>
+                                    <th className="px-5 py-3 font-semibold font-heading">Order Total</th>
+                                    <th className="px-5 py-3 font-semibold font-heading">Priority</th>
+                                    <th className="px-5 py-3 font-semibold font-heading">Lifecycle Status</th>
+                                    <th className="px-5 py-3 text-right font-semibold font-heading">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {loading ? (
+                                    [...Array(5)].map((_, i) => (
+                                        <tr key={i}>
+                                            <td colSpan={7} className="px-5 py-3.5">
+                                                <Skeleton className="h-5 w-full rounded" />
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : orders.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                                            No sales orders found matching criteria.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    orders.map((ord) => {
+                                        const badgeInfo = statusBadgeMap[ord.status] || {
+                                            label: ord.status,
+                                            variant: "slate",
+                                        };
+                                        const pBadge = priorityBadgeMap[ord.priority] || {
+                                            label: ord.priority,
+                                            variant: "slate",
+                                        };
+
+                                        return (
+                                            <tr
+                                                key={ord._id}
+                                                onClick={() => handleViewOrder(ord._id)}
+                                                className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                                            >
+                                                <td className="px-5 py-3.5 font-mono font-semibold text-slate-800">
+                                                    <span className="text-sky-600 group-hover:underline">
+                                                        {ord.orderNumber}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <span className="font-semibold text-slate-900 font-heading block">
+                                                        {ord.customer?.companyName || "N/A"}
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-400 block">
+                                                        Attn: {ord.customer?.contactPerson || "Contact"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-5 py-3.5 text-slate-600">
+                                                    {ord.items?.length || 0} product(s)
+                                                </td>
+                                                <td className="px-5 py-3.5 font-semibold text-slate-900 font-heading">
+                                                    {formatCurrency(ord.totalAmount)}
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <Badge variant={pBadge.variant} className="text-[10px]">
+                                                        {pBadge.label}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-5 py-3.5">
+                                                    <Badge variant={badgeInfo.variant} className="text-[10px]">
+                                                        {badgeInfo.label}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-5 py-3.5 text-right">
+                                                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleViewOrder(ord._id)}
+                                                            className="h-7 px-2 text-[11px] rounded-lg text-slate-600 hover:text-sky-600"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5 mr-1" />
+                                                            Details
+                                                        </Button>
+
+                                                        {ord.status === "draft" && (
+                                                            <Button
+                                                                size="sm"
+                                                                disabled={actionLoading}
+                                                                onClick={() => handleApproveOrder(ord._id)}
+                                                                className="h-7 px-2.5 text-[11px] rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-heading"
+                                                                title="Verify Inventory & Trigger MRP"
+                                                            >
+                                                                Approve
+                                                            </Button>
+                                                        )}
+
+                                                        {!["dispatched", "delivered", "cancelled"].includes(ord.status) && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                disabled={actionLoading}
+                                                                onClick={() => handleCancelOrder(ord._id)}
+                                                                className="h-7 px-2 text-[10.5px] rounded-lg text-rose-600 hover:bg-rose-50 border-rose-200"
+                                                            >
+                                                                Cancel
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {pagination.totalPages > 1 && (
+                        <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-body">
+                            <span>
+                                Page {pagination.page} of {pagination.totalPages} ({pagination.total} orders)
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={page <= 1}
+                                    onClick={() => setPage(page - 1)}
+                                    className="h-8 rounded-lg text-xs"
+                                >
+                                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                                    Previous
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={page >= pagination.totalPages}
+                                    onClick={() => setPage(page + 1)}
+                                    className="h-8 rounded-lg text-xs"
+                                >
+                                    Next
+                                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ─── MODAL: CREATE SALES ORDER ────────────────────────────────────────── */}
+            <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+                <DialogContent onClose={() => setShowCreateModal(false)} className="max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>New Manufacturing Sales Order</DialogTitle>
+                        <DialogDescription>
+                            Create a customer sales order with multi-item specifications and delivery schedule
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleCreateOrder} className="space-y-4">
+                        <div>
+                            <Label htmlFor="orderCustomer">Client Customer Account *</Label>
+                            <select
+                                id="orderCustomer"
+                                required
+                                value={selectedCustomer}
+                                onChange={(e) => setSelectedCustomer(e.target.value)}
+                                className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-body text-slate-900 transition-colors focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/15"
+                            >
+                                <option value="">Select Customer...</option>
+                                {customers.map((c) => (
+                                    <option key={c._id} value={c._id}>
+                                        {c.companyName} — Attn: {c.contactPerson} ({c.shippingAddress?.city || "India"})
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
-                        <form onSubmit={handleCreateOrder} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Customer</label>
-                                <select
-                                    required
-                                    value={selectedCustomer}
-                                    onChange={(e) => setSelectedCustomer(e.target.value)}
-                                    className="w-full border p-2 rounded text-xs bg-white"
+                        {/* Order Line Items */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label className="mb-0">Product Line Items *</Label>
+                                <button
+                                    type="button"
+                                    onClick={handleAddItemRow}
+                                    className="text-xs font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 font-heading cursor-pointer"
                                 >
-                                    <option value="">Select Customer...</option>
-                                    {customers.map((c) => (
-                                        <option key={c._id} value={c._id}>
-                                            {c.companyName} ({c.contactPerson})
-                                        </option>
-                                    ))}
-                                </select>
+                                    <Plus className="h-3.5 w-3.5" />
+                                    <span>Add Product</span>
+                                </button>
                             </div>
 
-                            {/* Order Items */}
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <label className="block text-xs font-medium text-gray-700">Order Items</label>
-                                    <button
-                                        type="button"
-                                        onClick={handleAddItemRow}
-                                        className="text-xs text-blue-600 hover:underline"
-                                    >
-                                        + Add Product
-                                    </button>
-                                </div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                                 {orderItems.map((item, index) => (
                                     <div key={index} className="flex gap-2 items-center">
                                         <select
                                             required
                                             value={item.product}
                                             onChange={(e) => handleItemChange(index, "product", e.target.value)}
-                                            className="flex-1 border p-1.5 rounded text-xs bg-white"
+                                            className="flex-1 h-9 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-body text-slate-900 focus:border-sky-500 focus:outline-none"
                                         >
-                                            <option value="">Select Product...</option>
+                                            <option value="">Choose Finished Good...</option>
                                             {products.map((p) => (
                                                 <option key={p._id} value={p._id}>
-                                                    {p.name} (₹{p.unitSellingPrice})
+                                                    {p.name} ({p.code}) — {formatCurrency(p.unitSellingPrice)}
                                                 </option>
                                             ))}
                                         </select>
-                                        <input
+                                        <Input
                                             type="number"
                                             min="1"
                                             required
                                             value={item.quantity}
                                             onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                            className="w-20 border p-1.5 rounded text-xs"
+                                            className="w-20 h-9 text-xs"
                                             placeholder="Qty"
                                         />
                                         {orderItems.length > 1 && (
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveItemRow(index)}
-                                                className="text-red-500 hover:text-red-700 text-xs px-1"
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                                title="Remove Item"
                                             >
-                                                &times;
+                                                <X className="h-4 w-4" />
                                             </button>
                                         )}
                                     </div>
                                 ))}
                             </div>
+                        </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                        Expected Delivery Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        required
-                                        value={expectedDate}
-                                        onChange={(e) => setExpectedDate(e.target.value)}
-                                        className="w-full border p-2 rounded text-xs"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Priority</label>
-                                    <select
-                                        value={priority}
-                                        onChange={(e) => setPriority(e.target.value)}
-                                        className="w-full border p-2 rounded text-xs bg-white"
-                                    >
-                                        <option value="low">Low</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="high">High</option>
-                                        <option value="urgent">Urgent</option>
-                                    </select>
-                                </div>
-                            </div>
-
+                        <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
-                                <textarea
-                                    value={remarks}
-                                    onChange={(e) => setRemarks(e.target.value)}
-                                    rows="2"
-                                    className="w-full border p-2 rounded text-xs"
-                                    placeholder="Optional order notes..."
+                                <Label htmlFor="expectedDate">Target Delivery Date</Label>
+                                <Input
+                                    id="expectedDate"
+                                    type="date"
+                                    value={expectedDate}
+                                    onChange={(e) => setExpectedDate(e.target.value)}
+                                    className="text-xs h-9.5"
                                 />
                             </div>
-
-                            <div className="flex justify-end gap-2 pt-2 border-t">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="px-3 py-1.5 border rounded text-xs"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                                >
-                                    Create Order
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* ─── MODAL: ORDER DETAILS & VALIDATION REPORT ───────────────────── */}
-            {viewOrder && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg shadow-lg border max-w-2xl w-full p-5 text-sm space-y-4 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-start border-b pb-3">
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <h2 className="font-bold text-base text-gray-900">{viewOrder.orderNumber}</h2>
-                                    {getStatusBadge(viewOrder.status)}
-                                </div>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                    Customer: {viewOrder.customer?.companyName} ({viewOrder.customer?.contactPerson})
-                                </p>
+                                <Label htmlFor="orderPriority">Order Priority</Label>
+                                <select
+                                    id="orderPriority"
+                                    value={priority}
+                                    onChange={(e) => setPriority(e.target.value)}
+                                    className="flex h-9.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-body text-slate-900 focus:border-sky-500 focus:outline-none"
+                                >
+                                    <option value="low">Low Priority</option>
+                                    <option value="medium">Medium Priority</option>
+                                    <option value="high">High Priority</option>
+                                    <option value="urgent">Urgent Manufacturing</option>
+                                </select>
                             </div>
-                            <button onClick={() => setViewOrder(null)} className="text-gray-400 hover:text-gray-600">
-                                &times;
-                            </button>
                         </div>
 
-                        {/* Items Table */}
                         <div>
-                            <h3 className="font-semibold text-xs text-gray-700 mb-2">Order Line Items</h3>
-                            <table className="w-full text-xs text-left border">
-                                <thead className="bg-gray-50 text-gray-500 border-b">
-                                    <tr>
-                                        <th className="p-2">Product</th>
-                                        <th className="p-2">Qty</th>
-                                        <th className="p-2">Unit Price</th>
-                                        <th className="p-2">Total</th>
-                                        <th className="p-2">Fulfillment</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {viewOrder.items?.map((item, idx) => (
-                                        <tr key={idx}>
-                                            <td className="p-2 font-medium">{item.product?.name || "Product"}</td>
-                                            <td className="p-2">{item.quantity}</td>
-                                            <td className="p-2">₹{item.unitPrice}</td>
-                                            <td className="p-2 font-semibold">₹{item.totalPrice}</td>
-                                            <td className="p-2 uppercase text-[10px] text-gray-600">
-                                                {item.fulfillmentSource?.replace("_", " ")}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <Label htmlFor="orderRemarks">Special Notes / Remarks</Label>
+                            <Input
+                                id="orderRemarks"
+                                value={remarks}
+                                onChange={(e) => setRemarks(e.target.value)}
+                                placeholder="Optional shipping or manufacturing specifications..."
+                                className="text-xs"
+                            />
                         </div>
 
-                        {/* Inventory & MRP Validation Report */}
-                        {viewOrder.inventoryValidation?.checkedAt && (
-                            <div className="bg-gray-50 p-3 rounded border text-xs space-y-2">
-                                <div className="flex justify-between font-semibold">
-                                    <span className="text-gray-800">Automated Inventory Check Report</span>
-                                    <span className="text-gray-400">
-                                        {new Date(viewOrder.inventoryValidation.checkedAt).toLocaleString()}
-                                    </span>
-                                </div>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setShowCreateModal(false)}
+                                className="rounded-xl"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createLoading}
+                                size="sm"
+                                className="rounded-xl font-heading"
+                            >
+                                {createLoading ? "Creating..." : "Submit Order"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
-                                {viewOrder.inventoryValidation.isFinishedGoodsSufficient ? (
-                                    <p className="text-emerald-700 font-medium">
-                                        100% Finished Goods in stock. Production skipped! Reserved batches:
-                                        {viewOrder.inventoryValidation.reservedFinishedGoods?.map((b) => (
-                                            <span key={b.batchNumber} className="ml-2 font-mono bg-white px-1 py-0.5 rounded border">
-                                                {b.batchNumber} ({b.quantity} pcs)
-                                            </span>
-                                        ))}
-                                    </p>
-                                ) : (
-                                    <div className="space-y-1">
-                                        <p className="text-amber-700 font-medium">
-                                            Finished goods insufficient &rarr; Production requirement generated!
-                                        </p>
-                                        {viewOrder.inventoryValidation.shortages?.length > 0 ? (
-                                            <div className="text-red-700">
-                                                <span className="font-semibold">Shortages identified:</span>
-                                                <ul className="list-disc pl-4 mt-0.5">
-                                                    {viewOrder.inventoryValidation.shortages.map((s, i) => (
-                                                        <li key={i}>
-                                                            {s.name} ({s.materialCode}): Required {s.requiredQuantity}, Available {s.availableQuantity} (Short: {s.shortage})
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        ) : (
-                                            <p className="text-emerald-600">All required raw materials reserved successfully!</p>
-                                        )}
+            {/* ─── MODAL: ORDER DETAILS & AUTOMATED MRP REPORT ────────────────────────── */}
+            {viewOrder && (
+                <Dialog open={!!viewOrder} onOpenChange={() => setViewOrder(null)}>
+                    <DialogContent onClose={() => setViewOrder(null)} className="max-w-2xl">
+                        <DialogHeader>
+                            <div className="flex items-center justify-between pr-6">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold font-mono">
+                                        SO
                                     </div>
-                                )}
+                                    <div>
+                                        <DialogTitle>{viewOrder.orderNumber}</DialogTitle>
+                                        <DialogDescription>
+                                            Customer: <span className="font-semibold text-slate-800">{viewOrder.customer?.companyName}</span> ({viewOrder.customer?.contactPerson})
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <Badge variant={priorityBadgeMap[viewOrder.priority]?.variant || "slate"}>
+                                        {viewOrder.priority}
+                                    </Badge>
+                                    <Badge variant={statusBadgeMap[viewOrder.status]?.variant || "slate"}>
+                                        {statusBadgeMap[viewOrder.status]?.label || viewOrder.status}
+                                    </Badge>
+                                </div>
                             </div>
-                        )}
+                        </DialogHeader>
 
-                        {/* Status History Timeline */}
-                        <div>
-                            <h3 className="font-semibold text-xs text-gray-700 mb-2">Order Lifecycle Audit Trail</h3>
-                            <div className="border rounded divide-y text-xs max-h-36 overflow-y-auto">
-                                {viewOrder.statusHistory?.map((hist, i) => (
-                                    <div key={i} className="p-2 flex justify-between items-center">
-                                        <div>
-                                            <span className="font-semibold uppercase text-blue-700 mr-2">{hist.status}</span>
-                                            <span className="text-gray-600">{hist.note}</span>
-                                        </div>
-                                        <span className="text-[10px] text-gray-400">
-                                            {new Date(hist.changedAt).toLocaleString()}
+                        {/* Order Line Items */}
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-heading mb-2">
+                                    Order Line Items
+                                </h4>
+                                <div className="border border-slate-100 rounded-xl overflow-hidden">
+                                    <table className="w-full text-xs text-left font-body">
+                                        <thead className="bg-slate-50/70 text-slate-500 border-b border-slate-100">
+                                            <tr>
+                                                <th className="p-2.5 font-semibold font-heading">Product</th>
+                                                <th className="p-2.5 font-semibold font-heading">Qty</th>
+                                                <th className="p-2.5 font-semibold font-heading">Unit Price</th>
+                                                <th className="p-2.5 font-semibold font-heading">Line Total</th>
+                                                <th className="p-2.5 font-semibold font-heading">Fulfillment</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {viewOrder.items?.map((item, idx) => (
+                                                <tr key={idx} className="hover:bg-slate-50/50">
+                                                    <td className="p-2.5 font-medium text-slate-800">
+                                                        {item.product?.name || "Product"}
+                                                    </td>
+                                                    <td className="p-2.5 text-slate-700 font-semibold">{item.quantity}</td>
+                                                    <td className="p-2.5 text-slate-600">{formatCurrency(item.unitPrice)}</td>
+                                                    <td className="p-2.5 font-semibold text-slate-900 font-heading">
+                                                        {formatCurrency(item.totalPrice)}
+                                                    </td>
+                                                    <td className="p-2.5 uppercase text-[10px] text-slate-500">
+                                                        {item.fulfillmentSource?.replace("_", " ")}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Inventory Validation & MRP Check Report */}
+                            {viewOrder.inventoryValidation?.checkedAt && (
+                                <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/70 space-y-2 text-xs font-body">
+                                    <div className="flex justify-between items-center font-heading">
+                                        <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-sky-500" />
+                                            Automated Inventory & MRP Verification Report
+                                        </span>
+                                        <span className="text-[10.5px] text-slate-400">
+                                            {new Date(viewOrder.inventoryValidation.checkedAt).toLocaleString()}
                                         </span>
                                     </div>
-                                ))}
+
+                                    {viewOrder.inventoryValidation.isFinishedGoodsSufficient ? (
+                                        <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200/70 flex items-center gap-2">
+                                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                            <span>
+                                                100% Finished Goods in stock. Production skipped! Reserved batch inventory:
+                                                {viewOrder.inventoryValidation.reservedFinishedGoods?.map((b) => (
+                                                    <span key={b.batchNumber} className="ml-1.5 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">
+                                                        {b.batchNumber} ({b.quantity} pcs)
+                                                    </span>
+                                                ))}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1.5">
+                                            <div className="p-2.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200/70 flex items-center gap-2">
+                                                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                                                <span>
+                                                    Finished Goods insufficient &rarr; Production requirement scheduled! Raw materials reserved.
+                                                </span>
+                                            </div>
+
+                                            {viewOrder.inventoryValidation.shortages?.length > 0 ? (
+                                                <div className="p-2.5 rounded-lg bg-rose-50 text-rose-800 border border-rose-200/70">
+                                                    <span className="font-semibold block font-heading mb-1">
+                                                        Material Shortages Detected:
+                                                    </span>
+                                                    <ul className="list-disc pl-4 space-y-0.5 text-[11.5px]">
+                                                        {viewOrder.inventoryValidation.shortages.map((s, i) => (
+                                                            <li key={i}>
+                                                                <span className="font-medium">{s.name}</span> ({s.materialCode}): Required {s.requiredQuantity}, Available {s.availableQuantity} (Shortage: {s.shortage})
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11.5px] text-emerald-600 font-medium">
+                                                    All required raw materials are in stock and reserved for production.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Lifecycle History Stepper */}
+                            <div>
+                                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 font-heading mb-2">
+                                    Order Lifecycle Audit Trail
+                                </h4>
+                                <div className="border border-slate-100 rounded-xl divide-y divide-slate-100 max-h-36 overflow-y-auto text-xs">
+                                    {viewOrder.statusHistory?.map((hist, i) => (
+                                        <div key={i} className="p-2.5 flex justify-between items-center hover:bg-slate-50/50">
+                                            <div>
+                                                <span className="font-semibold uppercase text-sky-700 mr-2 font-mono text-[11px]">
+                                                    {hist.status}
+                                                </span>
+                                                <span className="text-slate-600">{hist.note}</span>
+                                            </div>
+                                            <span className="text-[10.5px] text-slate-400">
+                                                {new Date(hist.changedAt).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Actions in details modal */}
-                        <div className="flex justify-end gap-2 pt-2 border-t">
+                        <DialogFooter>
                             {viewOrder.status === "draft" && (
-                                <button
-                                    onClick={() => handleApproveOrder(viewOrder._id)}
+                                <Button
+                                    size="sm"
                                     disabled={actionLoading}
-                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium"
+                                    onClick={() => handleApproveOrder(viewOrder._id)}
+                                    className="rounded-xl mr-auto font-heading bg-sky-500 hover:bg-sky-600 text-white"
                                 >
                                     Approve & Run MRP Check
-                                </button>
+                                </Button>
                             )}
-                            <button
+
+                            {!["dispatched", "delivered", "cancelled"].includes(viewOrder.status) && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={actionLoading}
+                                    onClick={() => handleCancelOrder(viewOrder._id)}
+                                    className="rounded-xl text-rose-600 hover:bg-rose-50 border-rose-200"
+                                >
+                                    Cancel Order
+                                </Button>
+                            )}
+
+                            <Button
+                                variant="secondary"
+                                size="sm"
                                 onClick={() => setViewOrder(null)}
-                                className="px-3 py-1.5 border rounded text-xs"
+                                className="rounded-xl"
                             >
                                 Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
         </div>
     );

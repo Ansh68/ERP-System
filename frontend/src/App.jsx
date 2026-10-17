@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import Navbar from "./components/Navbar";
+import AppLayout from "./components/AppLayout";
+import { Skeleton } from "./components/ui/Skeleton";
 
 // Pages
 import LoginPage from "./pages/LoginPage";
@@ -21,8 +22,21 @@ function ProtectedRoute({ children }) {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">
-                Checking session...
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+                <div className="w-full max-w-sm p-6 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="h-10 w-10 rounded-lg" />
+                        <div className="space-y-1.5 flex-1">
+                            <Skeleton className="h-4 w-28" />
+                            <Skeleton className="h-3 w-40" />
+                        </div>
+                    </div>
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                </div>
+                <p className="mt-4 text-xs font-medium text-slate-500 font-body">
+                    Restoring authenticated ERP session...
+                </p>
             </div>
         );
     }
@@ -31,12 +45,7 @@ function ProtectedRoute({ children }) {
         return <Navigate to="/login" replace />;
     }
 
-    return (
-        <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
-            <Navbar />
-            <main>{children}</main>
-        </div>
-    );
+    return <AppLayout>{children}</AppLayout>;
 }
 
 export default function App() {

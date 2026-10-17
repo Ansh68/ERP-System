@@ -38,11 +38,11 @@ const seedUsers = async () => {
 
     const usersData = [
         { name: "System Admin", email: "admin@flodata.com", role: "admin" },
-        { name: "Sarah Jenkins", email: "sales@flodata.com", role: "sales_executive" },
-        { name: "Ian Vance", email: "inventory@flodata.com", role: "inventory_manager" },
-        { name: "Paul Miller", email: "production@flodata.com", role: "production_manager" },
-        { name: "Quinn Campbell", email: "qc@flodata.com", role: "quality_inspector" },
-        { name: "David Foster", email: "dispatch@flodata.com", role: "dispatch_manager" },
+        { name: "Parul Sharma", email: "sales@flodata.com", role: "sales_executive" },
+        { name: "Keshav Gupta", email: "inventory@flodata.com", role: "inventory_manager" },
+        { name: "Piyush Patel", email: "production@flodata.com", role: "production_manager" },
+        { name: "Aarti Singh", email: "qc@flodata.com", role: "quality_inspector" },
+        { name: "Manish", email: "dispatch@flodata.com", role: "dispatch_manager" },
     ].map((u) => ({
         ...u,
         password: hashedPassword,
@@ -93,7 +93,7 @@ const seedCustomers = async (adminUser) => {
             contactPerson: `Manager ${name.split(" ")[0]}`,
             email: `contact@${name.toLowerCase().replace(/[^a-z]/g, "")}.com`,
             phone: `98${Math.floor(10000000 + Math.random() * 90000000)}`,
-            gstNumber: `27AAAC${Math.floor(1000 + Math.random() * 9000)}A1Z${i % 9}`,
+            gstNumber: `27AAACA${Math.floor(1000 + Math.random() * 9000)}A1Z${(i % 9) + 1}`,
             billingAddress: {
                 street: `Plot ${i + 10}, Phase ${((i % 4) + 1)}, Industrial Zone`,
                 city: loc.city,
@@ -461,7 +461,14 @@ const seedOrdersAndLifecycle = async (users, customers, products, rawMaterials) 
                     dispatchDate,
                     items: [{ product: product._id, batchNumber, quantity: orderQty }],
                     vehicle: `MH-04-TR-${Math.floor(1000 + Math.random() * 9000)}`,
-                    driver: { name: `Driver ${orderIndex % 15}`, phone: `98200${Math.floor(10000 + Math.random() * 90000)}` },
+                    driver: {
+                        name: [
+                            "Rajesh Kumar", "Suresh Sharma", "Ramesh Verma", "Anil Yadav", "Sunil Singh",
+                            "Vikram Patel", "Manoj Tiwari", "Dinesh Gupta", "Ajay Chauhan", "Vijay Joshi",
+                            "Mukesh Das", "Prakash Mishra", "Sanjay Rawat", "Deepak Rao", "Ashok Nair"
+                        ][orderIndex % 15],
+                        phone: `98200${Math.floor(10000 + Math.random() * 90000)}`
+                    },
                     courier,
                     trackingNumber,
                     shippingAddress: customer.shippingAddress,
@@ -695,7 +702,5 @@ export const runSeed = async () => {
     }
 };
 
-// If run directly via node seed.js
-if (import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`) {
-    runSeed();
-}
+// Automatically execute seeding when script is run
+runSeed();

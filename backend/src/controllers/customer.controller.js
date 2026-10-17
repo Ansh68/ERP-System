@@ -57,17 +57,25 @@ export const createCustomer = asyncHandler(async (req, res) => {
 
 // ─── GET ALL CUSTOMERS ────────────────────────────────────────────────────────
 export const getAllCustomers = asyncHandler(async (req, res) => {
-    const { search, isActive, page = 1, limit = 10 } = req.query;
+    const { search, isActive, status, page = 1, limit = 10 } = req.query;
 
     const filter = {};
 
-    // Text search across companyName, contactPerson, email
-    if (search) {
-        filter.$text = { $search: search };
+    // Substring case-insensitive search across companyName, contactPerson, email, and phone
+    if (search && search.trim()) {
+        const query = search.trim();
+        filter.$or = [
+            { companyName: { $regex: query, $options: "i" } },
+            { contactPerson: { $regex: query, $options: "i" } },
+            { email: { $regex: query, $options: "i" } },
+            { phone: { $regex: query, $options: "i" } },
+        ];
     }
 
-    if (isActive !== undefined) {
-        filter.isActive = isActive === "true";
+    if (isActive !== undefined && isActive !== "") {
+        filter.isActive = String(isActive) === "true";
+    } else if (status !== undefined && status !== "all" && status !== "") {
+        filter.isActive = status === "active" || String(status) === "true";
     }
 
     const skip = (Number(page) - 1) * Number(limit);
