@@ -4,45 +4,9 @@ This document describes the complete data model, relationships, field constraint
 
 ---
 
-## 1. Entity Relationship Diagram (ERD)
+## 1. Core Collections & Schema Specifications
 
-```mermaid
-erDiagram
-    User ||--o{ Customer : creates
-    User ||--o{ SalesOrder : creates
-    User ||--o{ ProductionPlan : supervises
-    User ||--o{ QualityInspection : inspects
-    User ||--o{ Dispatch : dispatches
-    User ||--o{ InventoryTransaction : performs
-    User ||--o{ AuditLog : acts
-
-    Customer ||--o{ SalesOrder : places
-    Customer ||--o{ Dispatch : receives
-
-    Product ||--o{ BOMItem : defines
-    RawMaterial ||--o{ BOMItem : consumed_by
-    Product ||--o{ SalesOrderItem : sold_as
-    SalesOrder ||--|{ SalesOrderItem : contains
-
-    SalesOrder ||--o{ ProductionPlan : fulfills
-    Product ||--o{ ProductionPlan : produces
-    ProductionPlan ||--o| QualityInspection : submitted_to
-    QualityInspection ||--o| FinishedGood : generates
-    Product ||--o{ FinishedGood : batched_as
-
-    SalesOrder ||--o| Dispatch : shipped_in
-    FinishedGood ||--o{ DispatchItem : included_in
-    Dispatch ||--|{ DispatchItem : contains
-
-    RawMaterial ||--o{ InventoryTransaction : tracks
-    FinishedGood ||--o{ InventoryTransaction : tracks
-```
-
----
-
-## 2. Core Collections & Schema Specifications
-
-### 2.1. Users Collection (`users`)
+### 1.1. Users Collection (`users`)
 Stores operational staff, system administrators, and role authorizations.
 
 - **Primary Model**: [`User`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/user.model.js)
@@ -68,7 +32,7 @@ Stores operational staff, system administrators, and role authorizations.
 
 ---
 
-### 2.2. Customers Collection (`customers`)
+### 1.2. Customers Collection (`customers`)
 Master client repository representing corporate buyers and consignment delivery points.
 
 - **Primary Model**: [`Customer`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/customer.model.js)
@@ -97,7 +61,7 @@ Master client repository representing corporate buyers and consignment delivery 
 
 ---
 
-### 2.3. Raw Materials Collection (`rawmaterials`)
+### 1.3. Raw Materials Collection (`rawmaterials`)
 Physical inventory master for components, fasteners, metals, and industrial consumables.
 
 - **Primary Model**: [`RawMaterial`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/rawMaterial.model.js)
@@ -123,7 +87,7 @@ Physical inventory master for components, fasteners, metals, and industrial cons
 
 ---
 
-### 2.4. Products Collection (`products`)
+### 1.4. Products Collection (`products`)
 Catalog of manufactured finished goods and multi-tier Bill of Materials (BOM) recipes.
 
 - **Primary Model**: [`Product`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/product.model.js)
@@ -148,7 +112,7 @@ Catalog of manufactured finished goods and multi-tier Bill of Materials (BOM) re
 
 ---
 
-### 2.5. Sales Orders Collection (`salesorders`)
+### 1.5. Sales Orders Collection (`salesorders`)
 Order lifecycle orchestration engine capturing procurement deals, inventory reservations, and customer commitments.
 
 - **Primary Model**: [`SalesOrder`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/salesOrder.model.js)
@@ -177,7 +141,7 @@ Order lifecycle orchestration engine capturing procurement deals, inventory rese
 
 ---
 
-### 2.6. Production Plans Collection (`productionplans`)
+### 1.6. Production Plans Collection (`productionplans`)
 Shopfloor execution plans allocating workstation machines, operator shifts, and material batches.
 
 - **Primary Model**: [`ProductionPlan`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/productionPlan.model.js)
@@ -205,7 +169,7 @@ Shopfloor execution plans allocating workstation machines, operator shifts, and 
 
 ---
 
-### 2.7. Quality Inspections Collection (`qualityinspections`)
+### 1.7. Quality Inspections Collection (`qualityinspections`)
 Batch quality sign-off evaluating 4 physical parameters prior to Finished Goods receipt.
 
 - **Primary Model**: [`QualityInspection`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/qualityInspection.model.js)
@@ -235,7 +199,7 @@ Batch quality sign-off evaluating 4 physical parameters prior to Finished Goods 
 
 ---
 
-### 2.8. Finished Goods Collection (`finishedgoods`)
+### 1.8. Finished Goods Collection (`finishedgoods`)
 Warehouse batches produced by manufacturing and approved by QC, available for dispatch fulfillment.
 
 - **Primary Model**: [`FinishedGood`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/finishedGood.model.js)
@@ -256,7 +220,7 @@ Warehouse batches produced by manufacturing and approved by QC, available for di
 
 ---
 
-### 2.9. Dispatches Collection (`dispatches`)
+### 1.9. Dispatches Collection (`dispatches`)
 Consignment manifests, carrier assignment, tracking numbers, and driver dispatch records.
 
 - **Primary Model**: [`Dispatch`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/dispatch.model.js)
@@ -280,7 +244,7 @@ Consignment manifests, carrier assignment, tracking numbers, and driver dispatch
 
 ---
 
-### 2.10. Inventory Transactions Collection (`inventorytransactions`)
+### 1.10. Inventory Transactions Collection (`inventorytransactions`)
 Immutable audit ledger recording all physical stock additions, deductions, and transfers for both Raw Materials and Finished Goods.
 
 - **Primary Model**: [`InventoryTransaction`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/inventoryTransaction.model.js)
@@ -305,7 +269,7 @@ Immutable audit ledger recording all physical stock additions, deductions, and t
 
 ---
 
-### 2.11. Audit Logs Collection (`auditlogs`)
+### 1.11. Audit Logs Collection (`auditlogs`)
 Immutable security and governance log capturing user actions, administrative overrides, and system events.
 
 - **Primary Model**: [`AuditLog`](file:///c:/Users/archi/Desktop/erp-system/backend/src/models/auditLog.model.js)
@@ -325,7 +289,7 @@ Immutable security and governance log capturing user actions, administrative ove
 
 ---
 
-## 3. Database Indexes Summary
+## 2. Database Indexes Summary
 
 | Collection | Index Definition | Purpose |
 | :--- | :--- | :--- |
