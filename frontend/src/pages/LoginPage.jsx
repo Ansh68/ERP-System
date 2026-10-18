@@ -271,44 +271,6 @@ export default function LoginPage() {
                             )}
                         </Button>
                     </form>
-
-                    {/* Quick Role Login Section for Testing */}
-                    {!isRegister && (
-                        <div className="mt-6 pt-5 border-t border-slate-100">
-                            <div className="flex items-center justify-between mb-2.5">
-                                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-heading flex items-center gap-1.5">
-                                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                                    1-Click Demo Accounts
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-medium">Test Mode</span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                {demoAccounts.map((acc) => {
-                                    const Icon = acc.icon;
-                                    return (
-                                        <button
-                                            key={acc.email}
-                                            type="button"
-                                            disabled={loading}
-                                            onClick={() => handleQuickRoleLogin(acc.email, acc.title)}
-                                            className="p-2.5 rounded-xl border border-slate-200/80 hover:border-sky-300 hover:bg-sky-50/30 text-left transition-all duration-150 group cursor-pointer bg-white"
-                                        >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-600 font-heading">
-                                                    {acc.title}
-                                                </span>
-                                                <Icon className="h-3.5 w-3.5 text-slate-400 group-hover:text-sky-500" />
-                                            </div>
-                                            <p className="text-[10.5px] text-slate-400 truncate">
-                                                {acc.email}
-                                            </p>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Footer security badge */}
